@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_description">Captures notification text displayed on the glasses and stores it locally in notification history.</string>
+</resources>
