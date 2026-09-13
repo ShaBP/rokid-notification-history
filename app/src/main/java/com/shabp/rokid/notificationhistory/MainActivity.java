@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.view.KeyEvent;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.Toast;
 
 import java.util.Collections;
 
@@ -37,6 +38,9 @@ public final class MainActivity extends Activity {
         });
         historyView.setOnClearHistory(new Runnable() {
             @Override public void run() { clearHistory(); }
+        });
+        historyView.setOnOpenDeveloperSettings(new Runnable() {
+            @Override public void run() { openDeveloperSettings(); }
         });
         onboardingCompleted = getPreferences(MODE_PRIVATE)
                 .getBoolean("accessibility_onboarding_completed", false);
@@ -86,6 +90,21 @@ public final class MainActivity extends Activity {
         store.clearHistory();
         store.close();
         reload();
+    }
+
+    private void openDeveloperSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+        } catch (Exception unavailable) {
+            try {
+                startActivity(new Intent(Settings.ACTION_SETTINGS));
+                Toast.makeText(this, "Open Developer options, then Wireless debugging",
+                        Toast.LENGTH_LONG).show();
+            } catch (Exception ignored) {
+                Toast.makeText(this, "Android settings unavailable on these glasses",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private boolean isListenerEnabled() {

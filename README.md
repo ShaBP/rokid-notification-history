@@ -16,6 +16,7 @@ A small, open-source Android application for Rokid AI glasses that captures mirr
 - Displays time, sender/group, and up to two lines of message text
 - Scrollable history of up to 200 notifications
 - Clear-history control
+- Direct **OPEN WIRELESS DEBUGGING SETTINGS** control to reach Android Developer options
 - English and Hebrew/RTL notification content
 - Fully local storage with no network permission or data upload
 
@@ -42,6 +43,7 @@ The instruction screen remains visible until the app detects that its Accessibil
 - Swipe up/down or use D-pad/volume controls to browse history.
 - Swipe upward from the first notification to highlight **CLEAR**, then select it.
 - **CLEAR** may also be tapped directly.
+- Tap **OPEN WIRELESS DEBUGGING SETTINGS** at the bottom (also available on the setup screen); under Developer options, look for **Wireless debugging**. Availability depends on the glasses firmware.
 
 ## Build
 

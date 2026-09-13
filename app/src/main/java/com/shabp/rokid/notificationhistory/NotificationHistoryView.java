@@ -30,7 +30,9 @@ final class NotificationHistoryView extends View {
     private float touchStartX;
     private Runnable enableAccess;
     private Runnable clearHistory;
+    private Runnable openDeveloperSettings;
     private boolean clearSelected;
+    private boolean developerSelected;
     private boolean showOnboarding;
 
     NotificationHistoryView(Context context) {
@@ -43,6 +45,7 @@ final class NotificationHistoryView extends View {
 
     void setOnEnableAccess(Runnable action) { enableAccess = action; }
     void setOnClearHistory(Runnable action) { clearHistory = action; }
+    void setOnOpenDeveloperSettings(Runnable action) { openDeveloperSettings = action; }
 
     void setData(List<NotificationEntry> newEntries, boolean enabled, boolean accessibility,
                  String status, boolean onboarding) {
@@ -58,7 +61,9 @@ final class NotificationHistoryView extends View {
     boolean handleKey(int keyCode) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER ||
                 keyCode == KeyEvent.KEYCODE_SPACE) {
-            if (showOnboarding || !listenerEnabled || !accessibilityEnabled) {
+            if (developerSelected && openDeveloperSettings != null) {
+                openDeveloperSettings.run();
+            } else if (showOnboarding || !listenerEnabled || !accessibilityEnabled) {
                 if (enableAccess != null) enableAccess.run();
             } else if (clearSelected && clearHistory != null) {
                 clearHistory.run();
@@ -67,13 +72,28 @@ final class NotificationHistoryView extends View {
             return true;
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
-                keyCode == KeyEvent.KEYCODE_PAGE_DOWN) { if (!showOnboarding) move(1); return true; }
+                keyCode == KeyEvent.KEYCODE_PAGE_DOWN) { move(1); return true; }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
-                keyCode == KeyEvent.KEYCODE_PAGE_UP) { if (!showOnboarding) move(-1); return true; }
+                keyCode == KeyEvent.KEYCODE_PAGE_UP) { move(-1); return true; }
         return false;
     }
 
     private void move(int delta) {
+        if (showOnboarding) {
+            developerSelected = delta > 0;
+            invalidate();
+            return;
+        }
+        if (delta > 0 && selected >= entries.size() - 1 && !clearSelected) {
+            developerSelected = true;
+            invalidate();
+            return;
+        }
+        if (delta < 0 && developerSelected) {
+            developerSelected = false;
+            invalidate();
+            return;
+        }
         if (delta < 0 && !clearSelected && selected == 0) {
             clearSelected = true;
             invalidate();
@@ -87,6 +107,7 @@ final class NotificationHistoryView extends View {
         }
         if (entries.isEmpty()) return;
         clearSelected = false;
+        developerSelected = false;
         selected = Math.max(0, Math.min(entries.size() - 1, selected + delta));
         invalidate();
     }
@@ -110,11 +131,18 @@ final class NotificationHistoryView extends View {
         }
         if (event.getAction() == MotionEvent.ACTION_UP) {
             float dy = event.getY() - touchStartY;
+            if (Math.abs(dy) <= 28 && event.getY() > getHeight() * 0.88f) {
+                if (openDeveloperSettings != null) openDeveloperSettings.run();
+                return true;
+            }
             if (showOnboarding) {
-                if (enableAccess != null) enableAccess.run();
+                if (Math.abs(dy) > 28) move(dy < 0 ? 1 : -1);
+                else if (developerSelected && openDeveloperSettings != null) openDeveloperSettings.run();
+                else if (enableAccess != null) enableAccess.run();
                 return true;
             }
             if (Math.abs(dy) > 28) move(dy < 0 ? 1 : -1);
+            else if (developerSelected && openDeveloperSettings != null) openDeveloperSettings.run();
             else if ((!listenerEnabled || !accessibilityEnabled) && enableAccess != null) {
                 enableAccess.run();
             } else if (event.getY() < getHeight() * 0.14f &&
@@ -137,8 +165,11 @@ final class NotificationHistoryView extends View {
 
         if (showOnboarding) {
             drawOnboarding(canvas, margin, width, height);
+            drawDeveloperControl(canvas, margin, width, height);
             return;
         }
+
+        drawDeveloperControl(canvas, margin, width, height);
 
         paint.setTypeface(android.graphics.Typeface.create("sans", android.graphics.Typeface.BOLD));
         paint.setTextSize(Math.max(15f, Math.min(width, height) * 0.046f));
@@ -190,7 +221,7 @@ final class NotificationHistoryView extends View {
 
         float rowHeight = portrait ? Math.max(78f, Math.min(width, height) * 0.17f) :
                 Math.max(72f, (height - top - margin) / 3f);
-        int visibleRows = Math.max(1, (int) ((height - top - margin) / rowHeight));
+        int visibleRows = Math.max(1, (int) ((height * 0.86f - top) / rowHeight));
         int first = Math.max(0, Math.min(selected - visibleRows / 2, entries.size() - visibleRows));
         for (int row = 0; row < visibleRows && first + row < entries.size(); row++) {
             if (portrait) {
@@ -236,7 +267,7 @@ final class NotificationHistoryView extends View {
         paint.setTypeface(android.graphics.Typeface.create("sans", android.graphics.Typeface.BOLD));
         paint.setTextSize(Math.max(15f, unit * 0.038f));
         String action = "TAP TO OPEN SETTINGS";
-        float boxTop = Math.min(height - unit * 0.13f, y + unit * 0.06f);
+        float boxTop = Math.min(height * 0.80f - unit * 0.09f, y + unit * 0.06f);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(2f);
         canvas.drawRoundRect(new RectF(margin, boxTop, width - margin,
@@ -244,6 +275,22 @@ final class NotificationHistoryView extends View {
         paint.setStyle(Paint.Style.FILL);
         canvas.drawText(action, (width - paint.measureText(action)) / 2f,
                 boxTop + unit * 0.059f, paint);
+    }
+
+    private void drawDeveloperControl(Canvas canvas, float margin, float width, float height) {
+        float unit = Math.min(width, height);
+        float top = height * 0.89f;
+        paint.setColor(developerSelected ? GREEN : DIM_GREEN);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2f);
+        canvas.drawRoundRect(new RectF(margin, top, width - margin,
+                height - margin), 8f, 8f, paint);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTypeface(android.graphics.Typeface.create("sans", android.graphics.Typeface.BOLD));
+        paint.setTextSize(Math.max(13f, unit * 0.034f));
+        String label = "OPEN WIRELESS DEBUGGING SETTINGS";
+        canvas.drawText(fit(label, width - margin * 2 - 18f), margin + 9f,
+                top + (height - margin - top + paint.getTextSize()) / 2f - 3f, paint);
     }
 
     private float drawWrapped(Canvas canvas, String text, float left, float y,
