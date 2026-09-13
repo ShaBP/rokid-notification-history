@@ -93,17 +93,31 @@ public final class MainActivity extends Activity {
     }
 
     private void openDeveloperSettings() {
-        try {
-            startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
-        } catch (Exception unavailable) {
+        if (Settings.Global.getInt(getContentResolver(),
+                Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 0) {
             try {
-                startActivity(new Intent(Settings.ACTION_SETTINGS));
-                Toast.makeText(this, "Open Developer options, then Wireless debugging",
+                startActivity(new Intent(Settings.ACTION_DEVICE_INFO_SETTINGS));
+                Toast.makeText(this, "Find Build number and select it 7 times to enable Developer options",
                         Toast.LENGTH_LONG).show();
+                return;
             } catch (Exception ignored) {
-                Toast.makeText(this, "Android settings unavailable on these glasses",
-                        Toast.LENGTH_LONG).show();
+                // Some glasses do not expose the Android device-info activity.
             }
+        } else {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+                return;
+            } catch (Exception ignored) {
+                // Fall through to the general Android settings screen.
+            }
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
+            Toast.makeText(this, "Open About device, then select Build number 7 times",
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception ignored) {
+            Toast.makeText(this, "Android settings unavailable on these glasses",
+                    Toast.LENGTH_LONG).show();
         }
     }
 

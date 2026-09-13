@@ -131,7 +131,8 @@ final class NotificationHistoryView extends View {
         }
         if (event.getAction() == MotionEvent.ACTION_UP) {
             float dy = event.getY() - touchStartY;
-            if (Math.abs(dy) <= 28 && event.getY() > getHeight() * 0.88f) {
+            if (Math.abs(dy) <= 28 && event.getY() < getHeight() * 0.14f &&
+                    touchStartX > getWidth() * 0.78f) {
                 if (openDeveloperSettings != null) openDeveloperSettings.run();
                 return true;
             }
@@ -169,23 +170,23 @@ final class NotificationHistoryView extends View {
             return;
         }
 
-        drawDeveloperControl(canvas, margin, width, height);
-
         paint.setTypeface(android.graphics.Typeface.create("sans", android.graphics.Typeface.BOLD));
-        paint.setTextSize(Math.max(15f, Math.min(width, height) * 0.046f));
+        paint.setTextSize(Math.max(15f, Math.min(width, height) * 0.038f));
         paint.setColor(GREEN);
         canvas.drawText("HISTORY  " + entries.size(), margin, margin + paint.getTextSize(), paint);
         String clearLabel = "CLEAR";
         float clearWidth = paint.measureText(clearLabel);
+        float developerWidth = paint.measureText("DEBUG");
+        float clearX = width - margin - developerWidth - Math.max(15f, margin * 0.7f) - clearWidth;
         if (clearSelected) {
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(2f);
-            canvas.drawRoundRect(new RectF(width - margin - clearWidth - 12f, margin * 0.45f,
-                    width - margin + 8f, margin + paint.getTextSize() + 6f), 6f, 6f, paint);
+            canvas.drawRoundRect(new RectF(clearX - 8f, margin * 0.45f,
+                    clearX + clearWidth + 8f, margin + paint.getTextSize() + 6f), 6f, 6f, paint);
             paint.setStyle(Paint.Style.FILL);
         }
-        canvas.drawText(clearLabel, width - margin - clearWidth,
-                margin + paint.getTextSize(), paint);
+        canvas.drawText(clearLabel, clearX, margin + paint.getTextSize(), paint);
+        drawDeveloperControl(canvas, margin, width, height);
 
         paint.setTypeface(android.graphics.Typeface.DEFAULT);
         paint.setTextSize(Math.max(12f, Math.min(width, height) * 0.034f));
@@ -221,7 +222,7 @@ final class NotificationHistoryView extends View {
 
         float rowHeight = portrait ? Math.max(78f, Math.min(width, height) * 0.17f) :
                 Math.max(72f, (height - top - margin) / 3f);
-        int visibleRows = Math.max(1, (int) ((height * 0.86f - top) / rowHeight));
+        int visibleRows = Math.max(1, (int) ((height - top - margin) / rowHeight));
         int first = Math.max(0, Math.min(selected - visibleRows / 2, entries.size() - visibleRows));
         for (int row = 0; row < visibleRows && first + row < entries.size(); row++) {
             if (portrait) {
@@ -240,7 +241,7 @@ final class NotificationHistoryView extends View {
         paint.setColor(GREEN);
         paint.setTypeface(android.graphics.Typeface.create("sans", android.graphics.Typeface.BOLD));
         paint.setTextSize(Math.max(17f, unit * 0.046f));
-        canvas.drawText(fit("NOTIFICATION HISTORY", width - margin * 2), margin, y, paint);
+        canvas.drawText(fit("NOTIFICATION HISTORY", width * 0.73f - margin), margin, y, paint);
 
         y += unit * 0.075f;
         paint.setTypeface(android.graphics.Typeface.DEFAULT);
@@ -267,7 +268,7 @@ final class NotificationHistoryView extends View {
         paint.setTypeface(android.graphics.Typeface.create("sans", android.graphics.Typeface.BOLD));
         paint.setTextSize(Math.max(15f, unit * 0.038f));
         String action = "TAP TO OPEN SETTINGS";
-        float boxTop = Math.min(height * 0.80f - unit * 0.09f, y + unit * 0.06f);
+        float boxTop = Math.min(height - unit * 0.13f, y + unit * 0.06f);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(2f);
         canvas.drawRoundRect(new RectF(margin, boxTop, width - margin,
@@ -279,18 +280,20 @@ final class NotificationHistoryView extends View {
 
     private void drawDeveloperControl(Canvas canvas, float margin, float width, float height) {
         float unit = Math.min(width, height);
-        float top = height * 0.89f;
-        paint.setColor(developerSelected ? GREEN : DIM_GREEN);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(2f);
-        canvas.drawRoundRect(new RectF(margin, top, width - margin,
-                height - margin), 8f, 8f, paint);
-        paint.setStyle(Paint.Style.FILL);
+        float top = margin * 0.45f;
+        paint.setTextSize(Math.max(15f, unit * 0.038f));
+        float textWidth = paint.measureText("DEBUG");
+        float left = width - margin - textWidth;
+        paint.setColor(GREEN);
         paint.setTypeface(android.graphics.Typeface.create("sans", android.graphics.Typeface.BOLD));
-        paint.setTextSize(Math.max(13f, unit * 0.034f));
-        String label = "OPEN WIRELESS DEBUGGING SETTINGS";
-        canvas.drawText(fit(label, width - margin * 2 - 18f), margin + 9f,
-                top + (height - margin - top + paint.getTextSize()) / 2f - 3f, paint);
+        if (developerSelected) {
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(2f);
+            canvas.drawRoundRect(new RectF(left - 8f, top, width - margin + 8f,
+                    margin + paint.getTextSize() + 6f), 6f, 6f, paint);
+            paint.setStyle(Paint.Style.FILL);
+        }
+        canvas.drawText("DEBUG", left, margin + paint.getTextSize(), paint);
     }
 
     private float drawWrapped(Canvas canvas, String text, float left, float y,
