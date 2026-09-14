@@ -23,7 +23,7 @@ A small, open-source Android application for Rokid AI glasses that captures mirr
 
 ## Privacy
 
-Notification text is stored only in the application's private SQLite database on the glasses. The app has no Internet permission and does not transmit, analyze, or use captured information for any other purpose.
+Notification text is stored only in the application's private SQLite database on the glasses and is never transmitted, analyzed, or used for any other purpose. The app declares Internet permission solely because Android treats its one-time ADB connection to `127.0.0.1` as network access.
 
 Accessibility access is required because consumer Rokid firmware does not expose mirrored iPhone notifications through Android's standard notification listener API. Android requires the user to enable this service manually.
 
@@ -47,7 +47,7 @@ The instruction screen remains visible until the app detects that its Accessibil
 - Tap **DEBUG** beside CLEAR (also available on the setup screen). If Developer options are off, select **Build number** seven times in Android device information, then return and tap **DEBUG** again. Under Developer options, look for **Wireless debugging**. Availability depends on the glasses firmware.
 - **DEBUG** opens the recovery control and an Android settings shortcut.
 
-## Optional reboot recovery (experimental)
+## Reboot recovery
 
 Enable **Notification History Capture** in Android Accessibility settings first. Open **DEBUG** and select **SELF-PAIR**. In Android Developer options, turn on **Wireless debugging**, then open **Pair device with pairing code**. Leave the pairing dialog open. The app's Accessibility service reads the dialog and pairs its embedded ADB client to `127.0.0.1`; it grants `WRITE_SECURE_SETTINGS` and enables recovery. Return to the app and open DEBUG to check for **Recovery ready; grant applied** and **granted**. No PC, USB cable, or command entry is needed. The device must have Android 11 or later and expose the Wireless debugging pairing dialog to Accessibility.
 
@@ -63,13 +63,13 @@ The app checks and repairs its Accessibility registration after `BOOT_COMPLETED`
 adb shell pm revoke com.shabp.rokid.notificationhistory android.permission.WRITE_SECURE_SETTINGS
 ```
 
-Self-pairing uses Android's temporary Wireless debugging ports and does not enable persistent network ADB. The private pairing key stays in the app's internal storage. Internet permission is used only for the loopback ADB connection; notification content remains local. Android may suppress boot delivery for a force-stopped app or firmware may override Accessibility after boot; in either case opening the app retries the repair. Test on the glasses with a full restart before relying on uninterrupted notification capture.
+Self-pairing uses Android's temporary Wireless debugging ports and does not enable persistent network ADB. The private pairing key stays in the app's internal storage. Internet permission is used only for the loopback ADB connection; notification content remains local. Recovery was tested successfully on Rokid AI glasses firmware `1.25.012-20260901-150201`: after shutdown and restart, the app opened directly in **LISTENING** mode without repeating setup. Other firmware versions may behave differently; opening the app retries recovery if boot delivery was suppressed.
 
 ## Build
 
 Requirements:
 
-- Android SDK 35
+- Android SDK 36
 - JDK 17 or newer
 - Gradle 8.x
 
