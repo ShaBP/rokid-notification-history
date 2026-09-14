@@ -14,11 +14,14 @@ import java.util.List;
 import java.util.Set;
 
 public final class NotificationAccessibilityService extends AccessibilityService {
+    private LocalPairing pairing;
     private String lastSignature = "";
     private long lastSavedAt;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (pairing == null) pairing = new LocalPairing(this);
+        pairing.observe(event);
         if (event == null || event.getPackageName() == null) return;
         String pkg = event.getPackageName().toString();
         if (getPackageName().equals(pkg)) return;

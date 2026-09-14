@@ -129,7 +129,8 @@ public final class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("Accessibility recovery")
                 .setMessage("Recovery: " + status + " · secure settings grant: " + grant +
-                        "\n\nA one-time ADB grant is needed. Recovery checks accessibility after reboot and when this app opens. It does not keep ADB open.")
+                        "\nPairing: " + LocalPairing.status(this) +
+                        "\n\nTo set up without a cable, select SELF-PAIR, then open Wireless debugging > Pair device with pairing code. Keep the dialog open while this app pairs locally. Check DEBUG again for the result. Recovery checks after reboot and when this app opens.")
                 .setPositiveButton(RecoveryController.optedIn(this) ? "TURN OFF" : "TURN ON",
                         (dialog, which) -> {
                             boolean enable = !RecoveryController.optedIn(this);
@@ -137,7 +138,15 @@ public final class MainActivity extends Activity {
                             Toast.makeText(this, RecoveryController.repair(this), Toast.LENGTH_LONG).show();
                             reload();
                         })
-                .setNeutralButton("ANDROID SETTINGS", (dialog, which) -> openDeveloperSettings())
+                .setNeutralButton("SELF-PAIR", (dialog, which) -> {
+                    if (!isAccessibilityEnabled()) {
+                        Toast.makeText(this, "Enable this app's Accessibility service first", Toast.LENGTH_LONG).show();
+                        openAccessibilityAccess();
+                        return;
+                    }
+                    LocalPairing.begin(this);
+                    openDeveloperSettings();
+                })
                 .setNegativeButton("CLOSE", null)
                 .show();
     }

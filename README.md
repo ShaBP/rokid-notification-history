@@ -18,7 +18,7 @@ A small, open-source Android application for Rokid AI glasses that captures mirr
 - Clear-history control
 - **DEBUG** beside CLEAR opens Android device information to enable Developer options, then Developer options on the next visit
 - English and Hebrew/RTL notification content
-- Fully local storage with no network permission or data upload
+- Fully local storage; the optional setup uses loopback ADB only and does not upload notifications
 - Optional accessibility recovery after reboot (requires a one-time ADB grant)
 
 ## Privacy
@@ -49,19 +49,21 @@ The instruction screen remains visible until the app detects that its Accessibil
 
 ## Optional reboot recovery (experimental)
 
-Open **DEBUG** and select **TURN ON**. With an ADB connection to the glasses, run once:
+Enable **Notification History Capture** in Android Accessibility settings first. Open **DEBUG** and select **SELF-PAIR**. In Android Developer options, turn on **Wireless debugging**, then open **Pair device with pairing code**. Leave the pairing dialog open. The app's Accessibility service reads the dialog and pairs its embedded ADB client to `127.0.0.1`; it grants `WRITE_SECURE_SETTINGS` and enables recovery. Return to the app and open DEBUG to check for **Recovery ready; grant applied** and **granted**. No PC, USB cable, or command entry is needed. The device must have Android 11 or later and expose the Wireless debugging pairing dialog to Accessibility.
+
+If an external ADB connection is available, the equivalent manual grant is:
 
 ```bash
 adb shell pm grant com.shabp.rokid.notificationhistory android.permission.WRITE_SECURE_SETTINGS
 ```
 
-Open the app to confirm that DEBUG reports the grant as **granted**. The app then checks and repairs its Accessibility registration after `BOOT_COMPLETED`, package update, and app launch. It preserves other enabled Accessibility services. Select **TURN OFF** in DEBUG to stop automatic repair; to remove the elevated grant too, run:
+The app checks and repairs its Accessibility registration after `BOOT_COMPLETED`, package update, and app launch. It preserves other enabled Accessibility services. Select **TURN OFF** in DEBUG to stop automatic repair; to remove the elevated grant too, run (when ADB is available):
 
 ```bash
 adb shell pm revoke com.shabp.rokid.notificationhistory android.permission.WRITE_SECURE_SETTINGS
 ```
 
-This method does not enable persistent network ADB. Android may suppress boot delivery for a force-stopped app or firmware may override Accessibility after boot; in either case opening the app retries the repair. Test on the glasses with a full restart before relying on uninterrupted notification capture.
+Self-pairing uses Android's temporary Wireless debugging ports and does not enable persistent network ADB. The private pairing key stays in the app's internal storage. Internet permission is used only for the loopback ADB connection; notification content remains local. Android may suppress boot delivery for a force-stopped app or firmware may override Accessibility after boot; in either case opening the app retries the repair. Test on the glasses with a full restart before relying on uninterrupted notification capture.
 
 ## Build
 
