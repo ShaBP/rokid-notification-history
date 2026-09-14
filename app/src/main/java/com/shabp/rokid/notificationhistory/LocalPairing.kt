@@ -3,6 +3,8 @@ package com.shabp.rokid.notificationhistory
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.os.SystemClock
+import android.os.IBinder
+import android.os.Parcel
 import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -36,7 +38,7 @@ internal class LocalPairing(private val service: AccessibilityService) {
         val nodes = ArrayList<Pair<String, String>>()
         roots.forEach { collect(it, nodes, 0) }
         val all = nodes.joinToString(" ") { it.second }.lowercase()
-        if (all.contains("wireless debugging") && !all.contains("pairing code")) {
+        if (all.contains("wireless debugging") && !nodes.any { code.containsMatchIn(it.second) }) {
             val port = nodes.asSequence().mapNotNull { endpoint.find(it.second)?.groupValues?.get(1)?.toIntOrNull() }
                 .firstOrNull { it in 1..65535 }
             if (port != null) prefs.edit().putInt("connect_port", port).apply()
@@ -99,11 +101,26 @@ internal class LocalPairing(private val service: AccessibilityService) {
         for (i in 0 until node.childCount) node.getChild(i)?.let { collect(it, result, depth + 1) }
     }
 
-    private fun readWirelessPort(): Int = try {
+    private fun readWirelessPort(): Int {
+        val propertyPort = try {
         val cls = Class.forName("android.os.SystemProperties")
         (cls.getMethod("get", String::class.java, String::class.java)
             .invoke(null, "service.adb.tls.port", "") as String).toIntOrNull() ?: 0
-    } catch (_: Exception) { 0 }
+        } catch (_: Exception) { 0 }
+        if (propertyPort > 0) return propertyPort
+        val request = Parcel.obtain()
+        val response = Parcel.obtain()
+        return try {
+            val manager = Class.forName("android.os.ServiceManager")
+            val binder = manager.getMethod("getService", String::class.java)
+                .invoke(null, "adb") as? IBinder ?: return 0
+            request.writeInterfaceToken("android.debug.IAdbManager")
+            if (!binder.transact(10, request, response, 0)) return 0
+            response.readException()
+            response.readInt().takeIf { it > 0 } ?: 0
+        } catch (_: Exception) { 0 }
+        finally { response.recycle(); request.recycle() }
+    }
 
     companion object {
         private val running = AtomicBoolean(false)
