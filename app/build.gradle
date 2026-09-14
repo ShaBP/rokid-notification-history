@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace 'com.shabp.rokid.notificationhistory'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.shabp.rokid.notificationhistory'
