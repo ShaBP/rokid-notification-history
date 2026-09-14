@@ -12,6 +12,12 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    packaging {
+        resources {
+            excludes += 'META-INF/versions/**'
+        }
+    }
+
     defaultConfig {
         applicationId 'com.shabp.rokid.notificationhistory'
         minSdk 26
