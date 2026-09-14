@@ -19,6 +19,7 @@ A small, open-source Android application for Rokid AI glasses that captures mirr
 - **DEBUG** beside CLEAR opens Android device information to enable Developer options, then Developer options on the next visit
 - English and Hebrew/RTL notification content
 - Fully local storage with no network permission or data upload
+- Optional accessibility recovery after reboot (requires a one-time ADB grant)
 
 ## Privacy
 
@@ -44,6 +45,23 @@ The instruction screen remains visible until the app detects that its Accessibil
 - Swipe upward from the first notification to highlight **CLEAR**, then select it.
 - **CLEAR** may also be tapped directly.
 - Tap **DEBUG** beside CLEAR (also available on the setup screen). If Developer options are off, select **Build number** seven times in Android device information, then return and tap **DEBUG** again. Under Developer options, look for **Wireless debugging**. Availability depends on the glasses firmware.
+- **DEBUG** opens the recovery control and an Android settings shortcut.
+
+## Optional reboot recovery (experimental)
+
+Open **DEBUG** and select **TURN ON**. With an ADB connection to the glasses, run once:
+
+```bash
+adb shell pm grant com.shabp.rokid.notificationhistory android.permission.WRITE_SECURE_SETTINGS
+```
+
+Open the app to confirm that DEBUG reports the grant as **granted**. The app then checks and repairs its Accessibility registration after `BOOT_COMPLETED`, package update, and app launch. It preserves other enabled Accessibility services. Select **TURN OFF** in DEBUG to stop automatic repair; to remove the elevated grant too, run:
+
+```bash
+adb shell pm revoke com.shabp.rokid.notificationhistory android.permission.WRITE_SECURE_SETTINGS
+```
+
+This method does not enable persistent network ADB. Android may suppress boot delivery for a force-stopped app or firmware may override Accessibility after boot; in either case opening the app retries the repair. Test on the glasses with a full restart before relying on uninterrupted notification capture.
 
 ## Build
 

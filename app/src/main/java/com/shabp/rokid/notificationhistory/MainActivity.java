@@ -1,6 +1,7 @@
 package com.shabp.rokid.notificationhistory;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -40,11 +41,12 @@ public final class MainActivity extends Activity {
             @Override public void run() { clearHistory(); }
         });
         historyView.setOnOpenDeveloperSettings(new Runnable() {
-            @Override public void run() { openDeveloperSettings(); }
+            @Override public void run() { showDebugOptions(); }
         });
         onboardingCompleted = getPreferences(MODE_PRIVATE)
                 .getBoolean("accessibility_onboarding_completed", false);
         setContentView(historyView);
+        RecoveryController.repair(this);
         RokidNotificationBridge.start(this);
     }
 
@@ -119,6 +121,25 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, "Android settings unavailable on these glasses",
                     Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void showDebugOptions() {
+        String status = RecoveryController.optedIn(this) ? "ON" : "OFF";
+        String grant = RecoveryController.hasGrant(this) ? "granted" : "missing";
+        new AlertDialog.Builder(this)
+                .setTitle("Accessibility recovery")
+                .setMessage("Recovery: " + status + " · secure settings grant: " + grant +
+                        "\n\nA one-time ADB grant is needed. Recovery checks accessibility after reboot and when this app opens. It does not keep ADB open.")
+                .setPositiveButton(RecoveryController.optedIn(this) ? "TURN OFF" : "TURN ON",
+                        (dialog, which) -> {
+                            boolean enable = !RecoveryController.optedIn(this);
+                            RecoveryController.setOptedIn(this, enable);
+                            Toast.makeText(this, RecoveryController.repair(this), Toast.LENGTH_LONG).show();
+                            reload();
+                        })
+                .setNeutralButton("ANDROID SETTINGS", (dialog, which) -> openDeveloperSettings())
+                .setNegativeButton("CLOSE", null)
+                .show();
     }
 
     private boolean isListenerEnabled() {
