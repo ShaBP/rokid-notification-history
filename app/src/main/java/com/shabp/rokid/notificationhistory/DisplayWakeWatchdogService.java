@@ -19,8 +19,25 @@ import android.util.Log;
 public final class DisplayWakeWatchdogService extends Service {
     private static final String CHANNEL = "notification_capture_watchdog";
     private static final int NOTIFICATION_ID = 1901;
+    private static final long PERIODIC_CHECK_MS = 5 * 60 * 1000L;
+    private static final long REBIND_COOLDOWN_MS = 60 * 1000L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean receiverRegistered;
+    private long lastRebindElapsed;
+
+    private final Runnable periodicCheck = new Runnable() {
+        @Override public void run() {
+            long now = SystemClock.elapsedRealtime();
+            long lastEvent = AccessibilityHealth.lastEventElapsed();
+            boolean stale = lastEvent == 0L || now - lastEvent >= PERIODIC_CHECK_MS;
+            if (RecoveryController.optedIn(DisplayWakeWatchdogService.this) &&
+                    RecoveryController.isRegistered(DisplayWakeWatchdogService.this) &&
+                    (!AccessibilityHealth.connected() || stale)) {
+                rebind("periodic probe stale");
+            }
+            handler.postDelayed(this, PERIODIC_CHECK_MS);
+        }
+    };
 
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
@@ -45,6 +62,7 @@ public final class DisplayWakeWatchdogService extends Service {
         startForeground(NOTIFICATION_ID, buildNotification());
         registerReceiver(screenReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
         receiverRegistered = true;
+        handler.postDelayed(periodicCheck, 15_000L);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -57,10 +75,20 @@ public final class DisplayWakeWatchdogService extends Service {
             if (!RecoveryController.optedIn(this) || !RecoveryController.isRegistered(this)) return;
             boolean callbackAfterWake = AccessibilityHealth.lastEventElapsed() > before;
             if (!AccessibilityHealth.connected() || !callbackAfterWake) {
-                Log.w("NotificationWatchdog", "Accessibility wake probe failed; rebinding");
-                RecoveryController.forceRebind(this);
+                rebind("display wake probe failed");
             }
         }, 1200L);
+    }
+
+    private void rebind(String reason) {
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastRebindElapsed < REBIND_COOLDOWN_MS) return;
+        lastRebindElapsed = now;
+        Log.w("NotificationWatchdog", reason + "; rebinding Accessibility");
+        getSharedPreferences("accessibility_diagnostics", MODE_PRIVATE).edit()
+                .putString("last_watchdog_rebind", reason + " @" + System.currentTimeMillis())
+                .apply();
+        RecoveryController.forceRebind(this);
     }
 
     private void createChannel() {

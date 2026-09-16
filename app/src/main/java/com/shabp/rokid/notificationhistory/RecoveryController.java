@@ -23,7 +23,10 @@ final class RecoveryController {
     static void setOptedIn(Context context, boolean enabled) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putBoolean(ENABLED, enabled).apply();
-        if (enabled) repair(context);
+        if (enabled) {
+            repair(context);
+            DisplayWakeWatchdogService.start(context);
+        }
     }
 
     static boolean hasGrant(Context context) {
