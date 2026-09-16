@@ -11,6 +11,7 @@ public final class RecoveryBootReceiver extends BroadcastReceiver {
         if (Intent.ACTION_BOOT_COMPLETED.equals(action) ||
                 Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
             Log.i("NotificationRecovery", RecoveryController.repair(context));
+            DisplayWakeWatchdogService.start(context);
         }
     }
 }

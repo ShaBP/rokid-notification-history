@@ -47,6 +47,7 @@ public final class MainActivity extends Activity {
                 .getBoolean("accessibility_onboarding_completed", false);
         setContentView(historyView);
         RecoveryController.repair(this);
+        DisplayWakeWatchdogService.start(this);
         RokidNotificationBridge.start(this);
     }
 
@@ -83,7 +84,8 @@ public final class MainActivity extends Activity {
         }
         HistoryStore store = new HistoryStore(this);
         historyView.setData(store.load(), enabled, accessibilityEnabled,
-                RokidNotificationBridge.getStatus(), !onboardingCompleted);
+                RokidNotificationBridge.getStatus(), !onboardingCompleted,
+                AccessibilityHealth.status(this, accessibilityEnabled));
         store.close();
     }
 
@@ -135,6 +137,8 @@ public final class MainActivity extends Activity {
                         (dialog, which) -> {
                             boolean enable = !RecoveryController.optedIn(this);
                             RecoveryController.setOptedIn(this, enable);
+                            if (enable) DisplayWakeWatchdogService.start(this);
+                            else stopService(new Intent(this, DisplayWakeWatchdogService.class));
                             Toast.makeText(this, RecoveryController.repair(this), Toast.LENGTH_LONG).show();
                             reload();
                         })
@@ -213,7 +217,8 @@ public final class MainActivity extends Activity {
             try { startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)); }
             catch (Exception ignored) {
                 historyView.setData(Collections.<NotificationEntry>emptyList(), false, false,
-                        RokidNotificationBridge.getStatus(), !onboardingCompleted);
+                        RokidNotificationBridge.getStatus(), !onboardingCompleted,
+                        "ACCESSIBILITY OFF");
             }
         }
     }

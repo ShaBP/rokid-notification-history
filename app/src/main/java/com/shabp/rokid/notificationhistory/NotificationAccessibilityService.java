@@ -4,6 +4,9 @@ import android.accessibilityservice.AccessibilityService;
 import android.app.Notification;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -17,9 +20,20 @@ public final class NotificationAccessibilityService extends AccessibilityService
     private LocalPairing pairing;
     private String lastSignature = "";
     private long lastSavedAt;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private long lastTreeRetryAt;
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        AccessibilityHealth.connected(this);
+        DisplayWakeWatchdogService.start(this);
+        notifyChanged();
+    }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        AccessibilityHealth.event(this);
         if (pairing == null) pairing = new LocalPairing(this);
         pairing.observe(event);
         if (event == null || event.getPackageName() == null) return;
@@ -30,6 +44,7 @@ public final class NotificationAccessibilityService extends AccessibilityService
         boolean rokidSource = lowerPkg.contains("rokid") || lowerPkg.contains("sprite") ||
                 lowerPkg.contains("systemui") || lowerPkg.contains("notification");
         if (!rokidSource) return;
+        recordDiagnostic("last_source", pkg + " type=" + event.getEventType());
 
         Set<String> text = new LinkedHashSet<>();
         boolean directCountdown = containsCountdown(event.getText()) ||
@@ -57,11 +72,23 @@ public final class NotificationAccessibilityService extends AccessibilityService
                 collect(source, text, 0);
             }
         }
-        if (text.isEmpty()) return;
+        if (text.isEmpty()) {
+            reject("empty");
+            return;
+        }
 
         // Accept a real Android Notification payload, or a Rokid mirrored popup carrying
         // either its notification header or its live countdown.
-        if (!nativeNotification && !hasMirroredNotificationMarker(text) && !directCountdown) return;
+        if (!nativeNotification && !hasMirroredNotificationMarker(text) && !directCountdown) {
+            reject("partial_no_marker");
+            scheduleTreeRetry(pkg);
+            return;
+        }
+
+        save(pkg, text);
+    }
+
+    private void save(String pkg, Set<String> text) {
 
         List<String> values = new ArrayList<>(text);
         String title = stripLeadingCountdown(values.get(0));
@@ -76,11 +103,68 @@ public final class NotificationAccessibilityService extends AccessibilityService
         HistoryStore store = new HistoryStore(this);
         store.saveRokid(pkg, shortName(pkg), title, body, now);
         store.close();
-        sendBroadcast(new Intent(NotificationCollectorService.ACTION_HISTORY_CHANGED)
-                .setPackage(getPackageName()));
+        recordDiagnostic("last_accepted", pkg + " @" + now);
+        notifyChanged();
     }
 
     @Override public void onInterrupt() { }
+
+    @Override public boolean onUnbind(Intent intent) {
+        AccessibilityHealth.disconnected(this);
+        notifyChanged();
+        return super.onUnbind(intent);
+    }
+
+    @Override public void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
+        AccessibilityHealth.disconnected(this);
+        notifyChanged();
+        super.onDestroy();
+    }
+
+    private void scheduleTreeRetry(String fallbackPackage) {
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastTreeRetryAt < 250L) return;
+        lastTreeRetryAt = now;
+        handler.postDelayed(() -> {
+            if (getWindows() == null) return;
+            for (android.view.accessibility.AccessibilityWindowInfo window : getWindows()) {
+                AccessibilityNodeInfo root = window.getRoot();
+                if (root == null) continue;
+                String pkg = root.getPackageName() == null ? fallbackPackage :
+                        root.getPackageName().toString();
+                String lower = pkg.toLowerCase();
+                if (!(lower.contains("rokid") || lower.contains("sprite") ||
+                        lower.contains("systemui") || lower.contains("notification"))) continue;
+                Set<String> values = new LinkedHashSet<>();
+                boolean countdown = containsCountdown(root, 0);
+                collect(root, values, 0);
+                if (!values.isEmpty() && (countdown || hasMirroredNotificationMarker(values))) {
+                    recordDiagnostic("last_tree_retry", "accepted " + pkg);
+                    save(pkg, values);
+                    return;
+                }
+            }
+            reject("tree_retry_failed");
+        }, 180L);
+    }
+
+    private void reject(String reason) {
+        android.content.SharedPreferences prefs = getSharedPreferences(
+                "accessibility_diagnostics", MODE_PRIVATE);
+        prefs.edit().putString("last_rejection", reason + " @" + System.currentTimeMillis())
+                .putInt("rejected_" + reason, prefs.getInt("rejected_" + reason, 0) + 1).apply();
+    }
+
+    private void recordDiagnostic(String key, String value) {
+        getSharedPreferences("accessibility_diagnostics", MODE_PRIVATE).edit()
+                .putString(key, value).apply();
+    }
+
+    private void notifyChanged() {
+        sendBroadcast(new Intent(NotificationCollectorService.ACTION_HISTORY_CHANGED)
+                .setPackage(getPackageName()));
+    }
 
     private static boolean hasMirroredNotificationMarker(Set<String> values) {
         for (String value : values) {
@@ -113,7 +197,7 @@ public final class NotificationAccessibilityService extends AccessibilityService
     }
 
     private static void collect(AccessibilityNodeInfo node, Set<String> result, int depth) {
-        if (node == null || depth > 8 || result.size() >= 12) return;
+        if (node == null || depth > 8 || result.size() >= 24) return;
         add(result, node.getText());
         add(result, node.getContentDescription());
         for (int i = 0; i < node.getChildCount(); i++) collect(node.getChild(i), result, depth + 1);

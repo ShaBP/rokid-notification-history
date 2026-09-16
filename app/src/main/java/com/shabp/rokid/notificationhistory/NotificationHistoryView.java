@@ -34,6 +34,7 @@ final class NotificationHistoryView extends View {
     private boolean clearSelected;
     private boolean developerSelected;
     private boolean showOnboarding;
+    private String captureStatus = "ACCESSIBILITY OFF";
 
     NotificationHistoryView(Context context) {
         super(context);
@@ -48,12 +49,13 @@ final class NotificationHistoryView extends View {
     void setOnOpenDeveloperSettings(Runnable action) { openDeveloperSettings = action; }
 
     void setData(List<NotificationEntry> newEntries, boolean enabled, boolean accessibility,
-                 String status, boolean onboarding) {
+                 String status, boolean onboarding, String accessibilityStatus) {
         entries = newEntries == null ? new ArrayList<>() : newEntries;
         listenerEnabled = enabled;
         accessibilityEnabled = accessibility;
         rokidStatus = status == null ? "UNKNOWN" : status;
         showOnboarding = onboarding;
+        captureStatus = accessibilityStatus == null ? "UNKNOWN" : accessibilityStatus;
         selected = Math.max(0, Math.min(selected, entries.size() - 1));
         invalidate();
     }
@@ -194,7 +196,7 @@ final class NotificationHistoryView extends View {
         String status;
         if (!listenerEnabled) status = "STATUS: NOTIFICATION ACCESS OFF";
         else if (!accessibilityEnabled) status = "STATUS: ACCESSIBILITY OFF";
-        else status = "LISTENING";
+        else status = captureStatus;
         if (portrait) {
             canvas.drawText(fit(status, width - margin * 2), margin,
                     margin * 1.55f + paint.getTextSize() * 2f, paint);
