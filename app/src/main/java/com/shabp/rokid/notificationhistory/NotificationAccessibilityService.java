@@ -77,6 +77,14 @@ public final class NotificationAccessibilityService extends AccessibilityService
             return;
         }
 
+        // Rokid renders notifications posted by apps installed on the glasses through
+        // Sprite/SystemUI, so the Accessibility event package is not necessarily the
+        // originating app package. Filter our local apps by the rendered app label too.
+        if (isLocalGlassesAppNotification(text)) {
+            reject("local_app");
+            return;
+        }
+
         // Accept a real Android Notification payload, or a Rokid mirrored popup carrying
         // either its notification header or its live countdown.
         if (!nativeNotification && !hasMirroredNotificationMarker(text) && !directCountdown) {
@@ -169,6 +177,15 @@ public final class NotificationAccessibilityService extends AccessibilityService
     private static boolean hasMirroredNotificationMarker(Set<String> values) {
         for (String value : values) {
             if (value.matches("(?is).*\\bnotifications?\\s*[|]\\s*\\S+.*")) return true;
+        }
+        return false;
+    }
+
+    private static boolean isLocalGlassesAppNotification(Set<String> values) {
+        for (String value : values) {
+            String normalized = value.toLowerCase().replaceAll("[^a-z0-9]+", " ").trim();
+            if (normalized.matches("^(?:notification )?(?:vesc hud|smart ?cam|" +
+                    "notification history)(?: .*)?$")) return true;
         }
         return false;
     }

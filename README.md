@@ -79,7 +79,7 @@ If an external ADB connection is available, the equivalent manual grant is:
 adb shell pm grant com.shabp.rokid.notificationhistory android.permission.WRITE_SECURE_SETTINGS
 ```
 
-The app checks and repairs its Accessibility registration after `BOOT_COMPLETED`, package update, and app launch. It preserves other enabled Accessibility services. Select **TURN OFF** in DEBUG to stop automatic repair; to remove the elevated grant too, run (when ADB is available):
+The app checks and repairs its Accessibility registration after `BOOT_COMPLETED`, package update, and app launch. An opt-in foreground watchdog also refreshes a stale registration periodically, but preventive refreshes run only while the display is off so they cannot interrupt Rokid's notification countdown. It preserves other enabled Accessibility services. Select **TURN OFF** in DEBUG to stop automatic repair; to remove the elevated grant too, run (when ADB is available):
 
 ```bash
 adb shell pm revoke com.shabp.rokid.notificationhistory android.permission.WRITE_SECURE_SETTINGS

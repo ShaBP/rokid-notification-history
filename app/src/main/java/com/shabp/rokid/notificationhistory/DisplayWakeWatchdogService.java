@@ -5,14 +5,13 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -22,7 +21,6 @@ public final class DisplayWakeWatchdogService extends Service {
     private static final long PERIODIC_CHECK_MS = 5 * 60 * 1000L;
     private static final long REBIND_COOLDOWN_MS = 60 * 1000L;
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private boolean receiverRegistered;
     private long lastRebindElapsed;
 
     private final Runnable periodicCheck = new Runnable() {
@@ -30,18 +28,15 @@ public final class DisplayWakeWatchdogService extends Service {
             long now = SystemClock.elapsedRealtime();
             long lastEvent = AccessibilityHealth.lastEventElapsed();
             boolean stale = lastEvent == 0L || now - lastEvent >= PERIODIC_CHECK_MS;
+            PowerManager power = getSystemService(PowerManager.class);
+            boolean displayOn = power != null && power.isInteractive();
             if (RecoveryController.optedIn(DisplayWakeWatchdogService.this) &&
                     RecoveryController.isRegistered(DisplayWakeWatchdogService.this) &&
-                    (!AccessibilityHealth.connected() || stale)) {
-                rebind("periodic probe stale");
+                    (!AccessibilityHealth.connected() || (stale && !displayOn))) {
+                rebind(!AccessibilityHealth.connected() ?
+                        "Accessibility disconnected" : "periodic screen-off refresh");
             }
             handler.postDelayed(this, PERIODIC_CHECK_MS);
-        }
-    };
-
-    private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context context, Intent intent) {
-            if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) probeAfterWake();
         }
     };
 
@@ -60,24 +55,11 @@ public final class DisplayWakeWatchdogService extends Service {
         super.onCreate();
         createChannel();
         startForeground(NOTIFICATION_ID, buildNotification());
-        registerReceiver(screenReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
-        receiverRegistered = true;
         handler.postDelayed(periodicCheck, 15_000L);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         return START_STICKY;
-    }
-
-    private void probeAfterWake() {
-        final long before = AccessibilityHealth.lastEventElapsed();
-        handler.postDelayed(() -> {
-            if (!RecoveryController.optedIn(this) || !RecoveryController.isRegistered(this)) return;
-            boolean callbackAfterWake = AccessibilityHealth.lastEventElapsed() > before;
-            if (!AccessibilityHealth.connected() || !callbackAfterWake) {
-                rebind("display wake probe failed");
-            }
-        }, 1200L);
     }
 
     private void rebind(String reason) {
@@ -97,6 +79,8 @@ public final class DisplayWakeWatchdogService extends Service {
                 "Notification capture reliability", NotificationManager.IMPORTANCE_MIN);
         channel.setDescription("Keeps notification capture ready when the glasses display wakes");
         channel.setShowBadge(false);
+        channel.setSound(null, null);
+        channel.enableVibration(false);
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
     }
 
@@ -110,13 +94,14 @@ public final class DisplayWakeWatchdogService extends Service {
         return builder.setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
                 .setContentTitle("Notification History")
                 .setContentText("Capture watchdog active")
-                .setOngoing(true).setCategory(Notification.CATEGORY_SERVICE)
+                .setOngoing(true).setOnlyAlertOnce(true).setLocalOnly(true)
+                .setVisibility(Notification.VISIBILITY_SECRET)
+                .setCategory(Notification.CATEGORY_SERVICE)
                 .setContentIntent(pending).build();
     }
 
     @Override public void onDestroy() {
         handler.removeCallbacksAndMessages(null);
-        if (receiverRegistered) unregisterReceiver(screenReceiver);
         super.onDestroy();
     }
 
