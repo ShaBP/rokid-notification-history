@@ -24,9 +24,30 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
+      - name: Restore permanent encrypted signing key
+        env:
+          NOTIFICATION_SIGNING_BACKUP_PASSWORD: ${{ secrets.NOTIFICATION_SIGNING_BACKUP_PASSWORD }}
+        run: |
+          test -n "$NOTIFICATION_SIGNING_BACKUP_PASSWORD"
+          mkdir -p "$RUNNER_TEMP/notification-signing"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in signing/notification-history-signing-backup.tar.gz.enc \
+            -out "$RUNNER_TEMP/notification-signing.tar.gz" \
+            -pass env:NOTIFICATION_SIGNING_BACKUP_PASSWORD
+          tar -xzf "$RUNNER_TEMP/notification-signing.tar.gz" -C "$RUNNER_TEMP/notification-signing"
+          set -a
+          . "$RUNNER_TEMP/notification-signing/credentials.txt"
+          set +a
+          echo "NOTIFICATION_KEYSTORE_FILE=$RUNNER_TEMP/notification-signing/notification-history-release.jks" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_KEYSTORE_PASSWORD=$NOTIFICATION_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_KEY_ALIAS=$NOTIFICATION_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "NOTIFICATION_KEY_PASSWORD=$NOTIFICATION_KEY_PASSWORD" >> "$GITHUB_ENV"
+      - name: Build and verify signed release APK
+        run: |
+          gradle --no-daemon assembleRelease
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@v4
         with:
           name: Notification-History-v1.10.2-diagnostic-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
